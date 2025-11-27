@@ -442,6 +442,7 @@ variable "dns_domain_names" {
     protocol = optional(string)
     client   = optional(string)
     gklm     = optional(string)
+    ppnlb    = optional(string)
   })
   default = {
     compute  = "comp.com"
@@ -449,6 +450,7 @@ variable "dns_domain_names" {
     protocol = "ces.com"
     client   = "clnt.com"
     gklm     = "gklm.com"
+    ppnlb    = "strgscale.private"
   }
   description = "IBM Cloud HPC DNS domain names."
 }
@@ -1199,8 +1201,64 @@ variable "login_security_group_name" {
   }
 }
 
+variable "volume_storages" {
+  description = "The Volume Storage Profile to use for the boot volume of the virtual instance"
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = [{
+    boot_volume_profile    = "sdp"
+    boot_volume_size       = 100
+    boot_volume_iops       = 3000 # IOPS is not applicable for general-purpose profile
+    boot_volume_disk_grow  = false
+    block_volume_capacity  = 500
+    block_volume_iops      = 20000
+    block_volume_disk_grow = false
+  }]
+}
+
+##############################################################################
+# Private Path NLB Variables
+##############################################################################
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  default     = false
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}
+
+variable "ibm_account_id" {
+  type        = string
+  default     = null
+  description = "IBM account ID for PPNLB"
+}
+
 variable "lsf_pay_per_use" {
   type        = bool
   default     = true
   description = "When lsf_pay_per_use is set to true, the LSF cluster nodes are provisioned using predefined custom images under a pay-per-use pricing plan, where billing is based on vCPU usage per hour. In this mode, providing custom images for the nodes is not required, and Bring Your Own Image (BYOL) is not supported. The pay-per-use option is available only for FP15 images. If you set the variable to false, the automation uses default images for all cluster nodes and enables support for BYOL, with no pay-per-use billing applied."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "MTU for protocol instance eth1. When private path NLB is enabled, MTU must be 8500 or lower. When disabled, MTU can be up to 9000."
+  default     = 9000
+
+  validation {
+    condition = (
+      var.protocol_instance_eth1_mtu >= 1500 &&
+      var.protocol_instance_eth1_mtu <= (
+        var.enable_private_path_nlb ? 8500 : 9000
+      )
+    )
+    error_message = "MTU must be between 1500-8500 when private path NLB is enabled, or 1500-9000 when disabled."
+  }
 }

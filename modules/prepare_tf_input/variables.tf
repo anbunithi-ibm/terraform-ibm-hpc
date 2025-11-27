@@ -232,6 +232,7 @@ variable "dns_domain_names" {
     protocol = string
     client   = string
     gklm     = string
+    ppnlb    = string
   })
   description = "IBM Cloud HPC DNS domain names."
 }
@@ -860,4 +861,35 @@ variable "ldap_security_group_name" {
   type        = string
   default     = null
   description = "Provide the security group name to provision the ldap nodes. If set to null, the solution will automatically create the necessary security group and rules. If you choose to use an existing security group, ensure it has the appropriate rules configured for the ldap nodes to function properly."
+}
+
+variable "volume_storages" {
+  description = "The Volume Storage Profile to use for volume of the virtual instance"
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = []
+}
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}
+
+variable "ibm_account_id" {
+  type        = string
+  description = "IBM account ID for PPNLB"
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Enable the Private Path NLB for CES. When enabled, MTU must be 8500 or lower because PPNLB does not support MTU 9000. When disabled, protocol nodes can safely use MTU 9000."
 }

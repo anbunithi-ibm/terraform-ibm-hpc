@@ -55,8 +55,8 @@ locals {
   # Subnet calculation
   active_subnets = {
     for zone in local.zones : zone => contains(local.active_zones, zone) ? [
-      local.client_instance_count != 0 ? {
-        name           = "client-subnet-${zone}"
+      local.client_instance_count != 0 || var.enable_private_path_nlb ? {
+        name           = var.enable_private_path_nlb && local.client_instance_count == 0 ? "ppnlb-subnet-${zone}" : "client-subnet-${zone}"
         acl_name       = "hpc-acl"
         cidr           = var.client_subnets_cidr[index(local.active_zones, zone)]
         public_gateway = true

@@ -283,18 +283,6 @@ variable "colocate_protocol_instances" {
   description = "Enable it to use storage instances as protocol instances"
 }
 
-variable "nsd_details" {
-  type = list(
-    object({
-      profile  = string
-      capacity = optional(number)
-      iops     = optional(number)
-    })
-  )
-  default     = null
-  description = "NSD details"
-}
-
 ##############################################################################
 # DNS Template Variables
 ##############################################################################
@@ -537,8 +525,29 @@ variable "ldap_security_group_name" {
   description = "Provide the security group name to provision the ldap nodes. If set to null, the solution will automatically create the necessary security group and rules. If you choose to use an existing security group, ensure it has the appropriate rules configured for the ldap nodes to function properly."
 }
 
+variable "volume_storages" {
+  description = "The Block Volume Storage Profile to use for the boot volume of the virtual instance"
+  type = list(
+    object({
+      boot_volume_profile    = optional(string)
+      boot_volume_iops       = optional(string)
+      boot_volume_size       = optional(number)
+      boot_volume_disk_grow  = optional(bool, false)
+      block_volume_capacity  = optional(number)
+      block_volume_iops      = optional(number)
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+  default = []
+}
+
 variable "lsf_pay_per_use" {
   type        = bool
   default     = true
   description = "When lsf_pay_per_use is set to true, the LSF cluster nodes are provisioned using predefined custom images under a pay-per-use pricing plan, where billing is based on vCPU usage per hour. In this mode, providing custom images for the nodes is not required, and Bring Your Own Image (BYOL) is not supported. The pay-per-use option is available only for FP15 images. If you set the variable to false, the automation uses default images for all cluster nodes and enables support for BYOL, with no pay-per-use billing applied."
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "Enable the Private Path NLB for CES. When enabled, MTU must be 8500 or lower because PPNLB does not support MTU 9000. When disabled, protocol nodes can safely use MTU 9000."
 }

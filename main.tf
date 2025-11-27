@@ -43,6 +43,7 @@ module "landing_zone" {
   afm_instances                                 = var.afm_instances
   afm_cos_config                                = var.afm_cos_config
   filesystem_config                             = var.filesystem_config
+  enable_private_path_nlb                       = var.enable_private_path_nlb
   # hpcs_instance_name            = var.hpcs_instance_name
   # clusters                      = var.clusters
 }
@@ -104,7 +105,6 @@ module "landing_zone_vsi" {
   storage_type                  = var.storage_type
   protocol_subnets              = local.protocol_subnets
   protocol_instances            = var.protocol_instances
-  nsd_details                   = var.nsd_details
   dns_domain_names              = var.dns_domain_names
   kms_encryption_enabled        = local.kms_encryption_enabled
   boot_volume_encryption_key    = var.boot_volume_encryption_key
@@ -134,7 +134,9 @@ module "landing_zone_vsi" {
   client_security_group_name    = var.client_security_group_name
   gklm_security_group_name      = var.gklm_security_group_name
   ldap_security_group_name      = var.ldap_security_group_name
+  volume_storages               = var.volume_storages
   lsf_pay_per_use               = var.lsf_pay_per_use
+  protocol_instance_eth1_mtu    = var.protocol_instance_eth1_mtu
 }
 
 module "prepare_tf_input" {
@@ -238,7 +240,11 @@ module "prepare_tf_input" {
   bms_boot_drive_encryption                        = var.bms_boot_drive_encryption
   scale_afm_bucket_config_details                  = local.scale_afm_bucket_config_details
   scale_afm_cos_hmac_key_params                    = local.scale_afm_cos_hmac_key_params
+  volume_storages                                  = var.volume_storages
+  enable_private_path_nlb                          = var.enable_private_path_nlb
+  ibm_account_id                                   = var.ibm_account_id
   lsf_pay_per_use                                  = var.lsf_pay_per_use
+  protocol_instance_eth1_mtu                       = var.protocol_instance_eth1_mtu
   depends_on                                       = [module.deployer]
 }
 
@@ -319,7 +325,42 @@ module "protocol_reserved_ip" {
   protocol_domain         = var.dns_domain_names["protocol"]
   protocol_dns_service_id = local.dns_instance_id
   protocol_dns_zone_id    = local.protocol_dns_zone_id
+  enable_private_path_nlb = var.enable_private_path_nlb
   depends_on              = [module.dns]
+}
+
+module "private_path_nlb" {
+  count                              = var.scheduler == "Scale" && var.enable_deployer == false && var.enable_private_path_nlb == true ? 1 : 0
+  source                             = "./modules/private_path_nlb"
+  private_path_name                  = format("%s-pp", var.cluster_prefix)
+  nlb_name                           = format("%s-ppnlb", var.cluster_prefix)
+  resource_group_id                  = var.resource_group_ids["service_rg"]
+  subnet_id                          = local.client_subnet
+  private_path_service_endpoints     = ["${var.cluster_prefix}.${var.dns_domain_names["ppnlb"]}"]
+  nlb_backend_pools                  = local.nlb_backend_pools
+  private_path_default_access_policy = "permit"
+  private_path_zonal_affinity        = true
+  private_path_publish               = true
+  private_path_account_policies      = local.private_path_account_policies
+  tags                               = [local.scheduler_lowercase, var.cluster_prefix]
+  access_tags                        = []
+}
+
+module "vpe" {
+  count                = var.scheduler == "Scale" && var.enable_deployer == false && var.enable_private_path_nlb == true ? 1 : 0
+  source               = "./modules/vpe"
+  region               = local.region
+  resource_group_id    = var.resource_group_ids["service_rg"]
+  prefix               = var.cluster_prefix
+  vpc_name             = local.vpc_name
+  vpc_id               = local.vpc_id
+  subnet_zone_list     = local.client_subnets
+  security_group_ids   = length(local.client_security_group_id) > 0 ? local.client_security_group_id : [local.vpc_default_security_group]
+  cloud_services       = []
+  cloud_service_by_crn = local.cloud_service_by_crn
+  service_endpoints    = "private"
+  reserved_ips         = {}
+  depends_on           = [module.landing_zone_vsi, module.private_path_nlb]
 }
 
 module "client_dns_records" {
@@ -481,6 +522,8 @@ module "write_storage_scale_cluster_inventory" {
   afm_cos_bucket_details                           = var.scale_afm_cos_hmac_key_params
   afm_cluster_instance_names                       = local.afm_names_final
   filesystem_mountpoint                            = local.encryption_filesystem_mountpoint
+  boot_volume_disk_grow                            = local.boot_volume_disk_grow
+  block_volume_disk_grow                           = local.block_volume_disk_grow
   depends_on                                       = [time_sleep.wait_for_vsi_syncup, module.landing_zone_vsi]
 }
 
@@ -517,7 +560,7 @@ module "write_client_scale_cluster_inventory" {
   scale_remote_cluster_clustername                 = jsonencode("")
   protocol_cluster_instance_names                  = []
   client_cluster_instance_names                    = local.scale_ces_enabled == true ? local.client_instance_names : []
-  protocol_cluster_reserved_names                  = local.scale_ces_enabled == true ? format("%s-ces.%s", var.cluster_prefix, var.dns_domain_names["protocol"]) : ""
+  protocol_cluster_reserved_names                  = local.scale_ces_enabled == true ? var.enable_private_path_nlb ? "${var.cluster_prefix}.${var.dns_domain_names["ppnlb"]}" : format("%s-ces.%s", var.cluster_prefix, var.dns_domain_names["protocol"]) : ""
   smb                                              = false
   nfs                                              = false
   object                                           = false
@@ -653,7 +696,6 @@ module "storage_cluster_configuration" {
   storage_cluster_gui_password    = var.storage_gui_password
   colocate_protocol_instances     = var.colocate_protocol_instances
   is_colocate_protocol_subset     = local.is_colocate_protocol_subset
-  bms_boot_drive_encryption       = var.bms_boot_drive_encryption
   mgmt_memory                     = local.management_memory
   mgmt_vcpus_count                = local.management_vcpus_count
   mgmt_bandwidth                  = local.management_bandwidth
@@ -696,6 +738,8 @@ module "storage_cluster_configuration" {
   ldap_server_cert                = local.ldap_server_cert
   enable_key_protect              = var.scale_encryption_type == "key_protect" ? "True" : "False"
   storage_type                    = var.storage_type
+  boot_volume_disk_grow           = local.boot_volume_disk_grow
+  block_volume_disk_grow          = local.block_volume_disk_grow
   depends_on                      = [module.write_storage_scale_cluster_inventory, module.key_protect_scale, module.ldap_configuration, module.host_resolution_add]
 }
 

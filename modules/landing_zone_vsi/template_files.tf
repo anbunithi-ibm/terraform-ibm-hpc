@@ -28,6 +28,7 @@ data "template_file" "client_user_data" {
     client_private_key_content = local.enable_client ? local.client_private_key_content != null ? local.client_private_key_content : "" : ""
     client_interfaces          = local.vsi_interfaces[0]
     client_dns_domain          = local.enable_client ? var.dns_domain_names["client"] : ""
+    client_instance_eth1_mtu   = var.protocol_instance_eth1_mtu
   }
 }
 
@@ -90,7 +91,7 @@ data "template_file" "storage_user_data" {
     storage_interfaces           = local.vsi_interfaces[0]
     protocol_interfaces          = local.vsi_interfaces[1]
     storage_dns_domain           = local.enable_storage ? var.dns_domain_names["storage"] : ""
-    storage_disk_type            = var.storage_type == "scratch" ? data.ibm_is_instance_profile.storage[0].disks[0].quantity[0].type : ""
+    storage_disk_type            = var.storage_type == "scratch" ? try(data.ibm_is_instance_profile.storage[0].disks[0].quantity[0].type, "") : ""
     protocol_dns_domain          = local.enable_protocol && var.colocate_protocol_instances ? var.dns_domain_names["protocol"] : ""
     enable_protocol              = local.enable_protocol && var.colocate_protocol_instances ? true : false
     vpc_region                   = local.enable_protocol && var.colocate_protocol_instances ? var.vpc_region : ""
@@ -113,6 +114,8 @@ data "template_file" "protocol_user_data" {
     vpc_region                  = var.vpc_region
     resource_group_id           = var.resource_group
     protocol_subnets            = local.enable_protocol ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
+    protocol_instance_eth1_mtu  = var.protocol_instance_eth1_mtu
+
   }
 }
 
@@ -140,17 +143,18 @@ data "template_file" "gklm_user_data" {
 data "template_file" "storage_bm_user_data" {
   template = file("${path.module}/templates/storage_bm_user_data.tpl")
   vars = {
-    bastion_public_key_content  = var.bastion_public_key_content != null ? var.bastion_public_key_content : ""
-    storage_public_key_content  = local.enable_storage ? module.storage_key[0].public_key_content : ""
-    storage_private_key_content = local.enable_storage ? module.storage_key[0].private_key_content : ""
-    storage_interfaces          = local.bms_interfaces[0]
-    protocol_interfaces         = local.bms_interfaces[1]
-    storage_dns_domain          = local.enable_storage ? var.dns_domain_names["storage"] : ""
-    protocol_dns_domain         = local.enable_protocol && var.colocate_protocol_instances ? var.dns_domain_names["protocol"] : ""
-    enable_protocol             = local.enable_protocol && var.colocate_protocol_instances ? true : false
-    vpc_region                  = local.enable_protocol && var.colocate_protocol_instances ? var.vpc_region : ""
-    resource_group_id           = local.enable_protocol && var.colocate_protocol_instances ? var.resource_group : ""
-    protocol_subnets            = local.enable_protocol && var.colocate_protocol_instances ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
+    bastion_public_key_content   = var.bastion_public_key_content != null ? var.bastion_public_key_content : ""
+    storage_public_key_content   = local.enable_storage ? module.storage_key[0].public_key_content : ""
+    storage_private_key_content  = local.enable_storage ? module.storage_key[0].private_key_content : ""
+    storage_interfaces           = local.bms_interfaces[0]
+    protocol_interfaces          = local.bms_interfaces[1]
+    storage_dns_domain           = local.enable_storage ? var.dns_domain_names["storage"] : ""
+    protocol_dns_domain          = local.enable_protocol && var.colocate_protocol_instances ? var.dns_domain_names["protocol"] : ""
+    enable_protocol              = local.enable_protocol && var.colocate_protocol_instances ? true : false
+    vpc_region                   = local.enable_protocol && var.colocate_protocol_instances ? var.vpc_region : ""
+    resource_group_id            = local.enable_protocol && var.colocate_protocol_instances ? var.resource_group : ""
+    protocol_subnets             = local.enable_protocol && var.colocate_protocol_instances ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
+    enable_sec_interface_storage = local.enable_sec_interface_storage
   }
 }
 

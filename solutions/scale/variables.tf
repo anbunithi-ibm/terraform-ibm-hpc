@@ -316,14 +316,14 @@ variable "storage_instances" {
     })
   )
   default = [{
-    profile    = "bx2d-32x128"
+    profile    = "bx2-32x128"
     count      = 2
     image      = "hpcc-scale5232-rhel810-v1"
     filesystem = "/gpfs/fs1"
   }]
   validation {
     condition = var.storage_type != "persistent" ? alltrue([
-      for inst in var.storage_instances : can(regex("^(b|c|m)x[0-9]+d-[0-9]+x[0-9]+$", inst.profile))
+      for inst in var.storage_instances : can(regex("^(b|c|m)x[0-9]-[0-9]+x[0-9]+$", inst.profile))
     ]) : true
     error_message = "Specified profile must be a valid IBM Cloud VPC GEN2 profile name and must be from the Balanced, Compute, Memory Categories (e.g., bx2d-4x16, cx2d-16x64). [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
   }
@@ -501,6 +501,25 @@ variable "filesystem_config" {
     max_metadata_replica     = 3
   }]
   description = "Specify the configuration parameters for one or more IBM Storage Scale (GPFS) filesystems. Each object in the list includes the filesystem mount point, block size, and replica settings for both data and metadata. These settings determine how data is distributed and replicated across the cluster for performance and fault tolerance."
+  validation {
+    condition = alltrue([
+      for fs in var.filesystem_config :
+
+      fs.default_data_replica >= 1 &&
+      fs.default_data_replica <= 3 &&
+      fs.max_data_replica >= 1 &&
+      fs.max_data_replica <= 3 &&
+
+      fs.default_metadata_replica >= 1 &&
+      fs.default_metadata_replica <= 3 &&
+      fs.max_metadata_replica >= 1 &&
+      fs.max_metadata_replica <= 3 &&
+
+      fs.max_data_replica > fs.default_data_replica &&
+      fs.max_metadata_replica > fs.default_metadata_replica
+    ])
+    error_message = "In filesystem_config, replica values must be between 1 and 3. Additionally, max_data_replica must be greater than default_data_replica, and max_metadata_replica must be greater than default_metadata_replica."
+  }
 }
 
 variable "filesets_config" {
@@ -520,6 +539,7 @@ variable "filesets_config" {
   ]
   description = "Specify a list of filesets with client mount paths and optional storage quotas (0 means no quota) to be created within the IBM Storage Scale filesystem.."
 }
+
 
 variable "afm_cos_config" {
   type = list(object({
@@ -613,6 +633,7 @@ variable "dns_domain_names" {
     protocol = string
     client   = string
     gklm     = string
+    ppnlb    = string
   })
   default = {
     compute  = "comp.com"
@@ -620,6 +641,7 @@ variable "dns_domain_names" {
     protocol = "ces.com"
     client   = "clnt.com"
     gklm     = "gklm.com"
+    ppnlb    = "strgscale.private"
   }
   description = "DNS domain names are user-friendly addresses that map to systems within a network, making them easier to identify and access. Provide the DNS domain names for IBM Cloud HPC components: compute, storage, protocol, client, and GKLM. These domains will be assigned to the respective nodes that are part of the scale cluster."
 }
@@ -1122,5 +1144,111 @@ variable "TF_PARALLELISM" {
   validation {
     condition     = 1 <= var.TF_PARALLELISM && var.TF_PARALLELISM <= 256
     error_message = "Input \"TF_PARALLELISM\" must be greater than or equal to 1 and less than or equal to 256."
+  }
+}
+
+variable "volume_storages" {
+  description = "The boot/block volume of the virtual instance"
+  type = list(
+    object({
+      # Boot Volume
+      boot_volume_profile   = optional(string)
+      boot_volume_size      = optional(number)
+      boot_volume_iops      = optional(number)
+      boot_volume_disk_grow = optional(bool, false)
+
+      # Block Volume
+      block_volume_capacity  = number
+      block_volume_iops      = number
+      block_volume_disk_grow = optional(bool, false)
+    })
+  )
+
+  default = [{
+    # Boot Volume
+    boot_volume_profile   = "sdp"
+    boot_volume_size      = 100
+    boot_volume_iops      = 3000 # IOPS is not applicable for general-purpose profile
+    boot_volume_disk_grow = false
+    # Block Volume
+    block_volume_capacity  = 500
+    block_volume_iops      = 20000
+    block_volume_disk_grow = false
+  }]
+
+  validation {
+    condition = alltrue([
+      for v in var.volume_storages : (
+        (
+          v.boot_volume_profile == null ? true : (
+            contains(["sdp", "general-purpose"], v.boot_volume_profile) &&
+            (v.boot_volume_size != null && v.boot_volume_size <= 250) &&
+            (
+              v.boot_volume_profile == "sdp" ?
+              # For SDP: IOPS and disk_grow required
+              (v.boot_volume_iops != null && v.boot_volume_iops >= 3000 && v.boot_volume_disk_grow != null)
+              :
+              # For general-purpose: IOPS must be null or 0
+              (v.boot_volume_iops == null || v.boot_volume_iops == 0)
+            )
+          )
+        )
+        &&
+        (
+          v.block_volume_capacity == null || v.block_volume_capacity == "" ? true : (
+            v.block_volume_iops != null &&
+            (v.block_volume_iops >= 3000) &&
+            v.block_volume_iops <= (
+              v.block_volume_capacity <= 20 ? 3000 :
+              v.block_volume_capacity <= 50 ? 5000 :
+              v.block_volume_capacity <= 80 ? 20000 :
+              v.block_volume_capacity <= 100 ? 30000 :
+              v.block_volume_capacity <= 130 ? 45000 :
+              v.block_volume_capacity <= 150 ? 60000 :
+              64000
+            )
+          )
+        )
+      )
+    ])
+
+    error_message = <<EOT
+Invalid volume_storages configuration:
+- You can provide only block, or both sections.
+- If boot_volume_profile = "sdp":
+    * boot_volume_size, boot_volume_iops (>=3000), and boot_volume_disk_grow are required
+- If boot_volume_profile = "general-purpose":
+    * boot_volume_iops must be null or 0
+- If block_volume_capacity is not null or empty:
+    * block_volume_iops must be >= 3000 and within correct range for capacity
+EOT
+  }
+}
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  default     = false
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}
+
+variable "ibm_account_id" {
+  type        = string
+  default     = null
+  description = "IBM account ID for PPNLB"
+}
+
+variable "protocol_instance_eth1_mtu" {
+  type        = number
+  description = "MTU for protocol instance eth1. When private path NLB is enabled, MTU must be 8500 or lower. When disabled, MTU can be up to 9000."
+  default     = 9000
+
+  validation {
+    condition = (
+      var.protocol_instance_eth1_mtu >= 1500 &&
+      var.protocol_instance_eth1_mtu <= (
+        var.enable_private_path_nlb ? 8500 : 9000
+      )
+    )
+    error_message = "MTU must be between 1500-8500 when private path NLB is enabled, or 1500-9000 when disabled."
   }
 }

@@ -288,8 +288,14 @@ variable "storage_type" {
   description = "Select the required storage type(scratch/persistent/eval)."
 }
 
-variable "bms_boot_drive_encryption" {
+variable "boot_volume_disk_grow" {
   type        = bool
   default     = false
-  description = "To enable the encryption for the boot drive of bare metal server. Select true or false"
+  description = "Boot volume disk size grow option for SDP."
+}
+
+variable "block_volume_disk_grow" {
+  type        = bool
+  default     = false
+  description = "Block volume disk size grow option for SDP."
 }
