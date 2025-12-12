@@ -105,7 +105,7 @@
                 },
                 {
                     "name": "deployer_instance",
-                    "value": "{image = \"hpcc-scale-deployer-v1\", profile = \"mx2-4x32\"}",
+                    "value": "{image = \"hpcc-scale-deployer-v2\", profile = \"mx2-4x32\"}",
                     "type": "object({ image = string, profile = string })",
                     "secure": false,
                     "description": "A deployer node is a dedicated virtual machine or server instance used to automate the deployment and configuration of infrastructure and applications for HPC cluster components. Specify the configuration for the deployer node, including the custom image and virtual server instance profile."

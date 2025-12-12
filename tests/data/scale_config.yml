@@ -21,7 +21,7 @@ bastion_instance:
 # Deployer Configuration
 deployer_instance:
   profile: "mx2-4x32"
-  image: "hpcc-scale-deployer-v1"
+  image: "hpcc-scale-deployer-v2"
 
 
 # Compute Configuration
