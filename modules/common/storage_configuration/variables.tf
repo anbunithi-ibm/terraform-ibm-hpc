@@ -288,6 +288,18 @@ variable "storage_type" {
   description = "Select the required storage type(scratch/persistent/eval)."
 }
 
+variable "boot_volume_disk_grow" {
+  type        = bool
+  default     = false
+  description = "Boot volume disk size grow option for SDP."
+}
+
+variable "block_volume_disk_grow" {
+  type        = bool
+  default     = false
+  description = "Block volume disk size grow option for SDP."
+}
+
 variable "bms_boot_drive_encryption" {
   type        = bool
   default     = false

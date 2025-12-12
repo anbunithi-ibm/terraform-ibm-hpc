@@ -301,22 +301,6 @@ variable "storage_gui_password" {
   description = "Password for storage cluster GUI"
 }
 
-variable "nsd_details" {
-  type = list(
-    object({
-      profile  = string
-      capacity = optional(number)
-      iops     = optional(number)
-    })
-  )
-  default = [{
-    capacity = 100
-    iops     = 1000
-    profile  = "custom"
-  }]
-  description = "Storage scale NSD details"
-}
-
 variable "custom_file_shares" {
   type = list(
     object({

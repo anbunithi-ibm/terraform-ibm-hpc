@@ -28,6 +28,7 @@ data "template_file" "client_user_data" {
     client_private_key_content = local.enable_client ? local.client_private_key_content != null ? local.client_private_key_content : "" : ""
     client_interfaces          = local.vsi_interfaces[0]
     client_dns_domain          = local.enable_client ? var.dns_domain_names["client"] : ""
+    client_instance_eth1_mtu   = var.protocol_instance_eth1_mtu
   }
 }
 
@@ -39,6 +40,7 @@ data "template_file" "management_user_data" {
     management_private_key_content = local.enable_management ? local.compute_private_key_content != null ? local.compute_private_key_content : "" : ""
     management_interfaces          = var.storage_type == "scratch" ? local.vsi_interfaces[0] : local.bms_interfaces[0]
     management_dns_domain          = var.dns_domain_names["compute"]
+    mtu_value                      = var.mtu_value
   }
 }
 
@@ -52,6 +54,7 @@ data "template_file" "lsf_compute_user_data" {
     management_dns_domain          = var.dns_domain_names["compute"]
     # TODO: Fix me
     dynamic_compute_instances = var.dynamic_compute_instances == null ? "" : ""
+    mtu_value                 = var.mtu_value
   }
 }
 
@@ -64,6 +67,7 @@ data "template_file" "login_user_data" {
     login_interfaces           = var.storage_type == "scratch" ? local.vsi_interfaces[0] : local.bms_interfaces[0]
     login_dns_domain           = var.dns_domain_names["compute"]
     scheduler                  = var.scheduler
+    mtu_value                  = var.mtu_value
   }
 }
 
@@ -90,7 +94,7 @@ data "template_file" "storage_user_data" {
     storage_interfaces           = local.vsi_interfaces[0]
     protocol_interfaces          = local.vsi_interfaces[1]
     storage_dns_domain           = local.enable_storage ? var.dns_domain_names["storage"] : ""
-    storage_disk_type            = var.storage_type == "scratch" ? data.ibm_is_instance_profile.storage[0].disks[0].quantity[0].type : ""
+    storage_disk_type            = var.storage_type == "scratch" ? try(data.ibm_is_instance_profile.storage[0].disks[0].quantity[0].type, "") : ""
     protocol_dns_domain          = local.enable_protocol && var.colocate_protocol_instances ? var.dns_domain_names["protocol"] : ""
     enable_protocol              = local.enable_protocol && var.colocate_protocol_instances ? true : false
     vpc_region                   = local.enable_protocol && var.colocate_protocol_instances ? var.vpc_region : ""
@@ -113,6 +117,8 @@ data "template_file" "protocol_user_data" {
     vpc_region                  = var.vpc_region
     resource_group_id           = var.resource_group
     protocol_subnets            = local.enable_protocol ? (length(local.protocol_subnets) > 0 ? local.protocol_subnets[0].id : "") : ""
+    protocol_instance_eth1_mtu  = var.protocol_instance_eth1_mtu
+
   }
 }
 

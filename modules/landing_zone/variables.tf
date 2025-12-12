@@ -468,3 +468,8 @@ variable "clusters" {
     })
   )
 }
+
+variable "enable_private_path_nlb" {
+  type        = bool
+  description = "Enable private path network load balancer for providing CES (NFS) storage."
+}

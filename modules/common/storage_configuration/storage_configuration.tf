@@ -172,3 +172,18 @@ resource "null_resource" "perform_scale_deployment" {
     build = timestamp()
   }
 }
+
+resource "null_resource" "perform_disk_grow_and_nsd_add" {
+  count = (var.block_volume_disk_grow || var.boot_volume_disk_grow) ? 1 : 0
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command = join(" && ", compact([
+      var.boot_volume_disk_grow ? "sudo ansible-playbook -f 32 -i ${local.storage_inventory_path} ${local.storage_boot_disk_grow_playbook_path}" : "",
+      var.block_volume_disk_grow ? "sudo ansible-playbook -f 32 -i ${local.storage_inventory_path} ${local.storage_block_disk_grow_and_nsd_add_playbook_path}" : ""
+    ]))
+  }
+  depends_on = [null_resource.perform_scale_deployment]
+  triggers = {
+    build = timestamp()
+  }
+}
