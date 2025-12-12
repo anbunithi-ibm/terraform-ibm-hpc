@@ -152,7 +152,7 @@ variable "deployer_instance" {
     profile = string
   })
   default = {
-    image   = "hpcc-scale-deployer-v1"
+    image   = "hpcc-scale-deployer-v2"
     profile = "bx2-8x32"
   }
   validation {
