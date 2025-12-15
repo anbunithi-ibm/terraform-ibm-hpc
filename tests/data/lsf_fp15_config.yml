@@ -13,7 +13,7 @@ bastion_instance:
   image: ibm-ubuntu-22-04-5-minimal-amd64-3
 deployer_instance:
   profile:  bx2-8x32
-  image: hpc-lsf-fp15-deployer-rhel810-v1
+  image: hpc-lsf-fp15-deployer-rhel810-v2
 enable_cos_integration: false
 enable_vpc_flow_logs: false
 custom_file_shares:
